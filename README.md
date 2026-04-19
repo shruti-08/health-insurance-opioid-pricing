@@ -1,4 +1,4 @@
-# rx-risk-pricer
+# health-insurance-opioid-pricing
 
 **Predicting county-level opioid prescribing rates to enable actuarially sound insurance premium pricing.**
 
@@ -73,7 +73,7 @@ The repository is now arranged around that same flow.
 ## Project Structure
 
 ```
-rx-risk-pricer/
+health-insurance-opioid-pricing/
 ├── data/
 │   ├── raw/            ← original CMS & ACS downloads (not committed)
 │   ├── processed/      ← cleaned, merged datasets
@@ -112,8 +112,8 @@ rx-risk-pricer/
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/YOUR_USERNAME/rx-risk-pricer.git
-cd rx-risk-pricer
+git clone https://github.com/YOUR_USERNAME/health-insurance-opioid-pricing.git
+cd health-insurance-opioid-pricing
 ```
 
 ### 2. Install dependencies
