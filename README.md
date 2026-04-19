@@ -1,8 +1,8 @@
-# health-insurance-opioid-pricing
+# rx-risk-pricer
 
 **Predicting county-level opioid prescribing rates to enable actuarially sound insurance premium pricing.**
 
-> *"Where you prescribed opioids last year — and how fast that is changing — predicts next year's rate more accurately than any demographic."*
+> *"Where you prescribed opioids last year — and how fast that is changing — predicts next year's rate more accurately than any demographic. Geography is destiny."*
 
 ---
 
@@ -55,6 +55,21 @@ Static Census demographics gave **0% marginal lift**. What actually predicts opi
 
 ---
 
+## Project Flow
+
+The notebook you shared follows this sequence:
+
+1. Load and clean CMS opioid geography data
+2. Build train/test sets with lag fields
+3. Engineer CP3 momentum features
+4. Fit the CP2 baseline linear regression
+5. Fit the CP3 final Random Forest
+6. Evaluate and compare model performance
+7. Segment counties into premium tiers with K-Means
+8. Estimate annual ROI from RMSE reduction
+
+The repository is now arranged around that same flow.
+
 ## Project Structure
 
 ```
@@ -69,10 +84,17 @@ rx-risk-pricer/
 │   ├── 03_random_forest.ipynb
 │   └── 04_kmeans_clustering.ipynb
 ├── src/
-│   ├── feature_engineering.py
-│   ├── model_training.py
-│   ├── clustering.py
-│   └── roi_calculator.py
+│   ├── workflow/
+│   │   ├── ingest.py
+│   │   ├── assemble.py
+│   │   ├── features.py
+│   │   ├── baseline.py
+│   │   ├── modeling.py
+│   │   ├── segmentation.py
+│   │   ├── roi.py
+│   │   └── orchestration.py
+│   ├── run_pipeline.py
+│   └── thin compatibility wrappers
 ├── outputs/
 │   ├── figures/        ← charts and maps
 │   ├── models/         ← saved Random Forest model (.pkl)
@@ -103,7 +125,7 @@ pip install -r requirements.txt
 - **CMS Medicare Part D Prescribers** — [data.cms.gov](https://data.cms.gov)
 - **ACS 5-Year Estimates** — [census.gov/programs-surveys/acs](https://www.census.gov/programs-surveys/acs)
 
-Place raw files in `data/raw/`.
+Place raw CMS files in `data/raw/`. The pipeline will clean them, drop invalid rows, write cleaned versions into `data/processed/`, and then use those processed files for downstream modeling.
 
 ### 4. Run the notebooks in order
 ```
@@ -113,17 +135,37 @@ Place raw files in `data/raw/`.
 04_kmeans_clustering.ipynb ← Premium tier segmentation
 ```
 
-### 5. Or run the full pipeline via src/
+### 5. Build the notebook flow directly in code
 ```python
-from src.feature_engineering import engineer_features
-from src.model_training import train_random_forest
-from src.clustering import assign_risk_tiers
-from src.roi_calculator import calculate_roi
+from src.workflow.ingest import load_processed_cms, prepare_processed_cms
+from src.workflow.assemble import build_model_datasets
+from src.workflow.features import engineer_features
+from src.workflow.baseline import evaluate_baseline_linear_regression
+from src.workflow.modeling import fit_random_forest, evaluate_model, predict_counties
+from src.workflow.segmentation import assign_risk_tiers
+from src.workflow.roi import calculate_roi
 
-df = engineer_features(raw_df)
-model, predictions = train_random_forest(df)
-tiered_df = assign_risk_tiers(predictions)
-roi = calculate_roi(baseline_rmse=0.724, final_rmse=0.432)
+processed_2020 = prepare_processed_cms("data/raw/cms_2020.csv", year=2020)
+processed_2021 = prepare_processed_cms("data/raw/cms_2021.csv", year=2021)
+
+cms_2020 = load_processed_cms(processed_2020)
+cms_2021 = load_processed_cms(processed_2021)
+
+df_train, df_test, cutoff = build_model_datasets(cms_2020, cms_2021)
+df_train = engineer_features(df_train)
+df_test = engineer_features(df_test)
+
+baseline = evaluate_baseline_linear_regression(df_train, df_test)
+rf = fit_random_forest(df_train)
+final_model = evaluate_model(rf, df_test)
+tiered_df = assign_risk_tiers(predict_counties(rf, df_test))
+roi = calculate_roi(baseline["rmse"], final_model["rmse"])
+```
+
+### 6. Run the CLI in either mode
+```bash
+python -m src.run_pipeline --input data/processed/county_features.csv
+python -m src.run_pipeline --train-cms data/raw/cms_2020.csv --test-cms data/raw/cms_2021.csv
 ```
 
 ---
@@ -147,7 +189,7 @@ Annual Savings = (RMSE_baseline - RMSE_final) / 100
 ## Team
 
 **Team 6 — Actuarial Risk Squad**
-Shruti Deulgaonkar · Aashish Wagle · Lavannya Patil
+Aashish Wagle · Lavannya Patil · Shruti Deulgaonkar
 
 ITCS 6100 · Spring 2026 · UNC Charlotte
 
